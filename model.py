@@ -20,12 +20,15 @@ class EncoderCNN(nn.Module):
         features = features.view(features.size(0), -1)
         features = self.embed(features)
         return features
-    
 
 class DecoderRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers=1):
         # input_gate = nn.Linear(embed_size, hidden_size)
         super(DecoderRNN, self).__init__()
+
+        self.embed_size = embed_size
+        self.hidden_size = hidden_size
+        self.vocab_size = vocab_size
         
         self.embed1 = nn.Embedding(vocab_size, embed_size)
         self.lstm1 = nn.LSTM(input_size = embed_size, hidden_size = hidden_size, num_layers = num_layers)
@@ -69,4 +72,64 @@ class DecoderRNN(nn.Module):
 
     def sample(self, inputs, states=None, max_len=20):
         " accepts pre-processed image tensor (inputs) and returns predicted sentence (list of tensor ids of length max_len) "
-        pass
+        # inputs is an embedd vector. 
+
+        def sample_from_dist(tag_dist):
+            """
+            tag_dist: a 1d tensor of shape (vocab_size).
+                The output from the forward calculation of the decoder. 
+            """
+            prob = torch.distributions.categorical.Categorical(tag_dist)
+            word_token = prob.sample()    
+
+            return word_token
+
+        def forward_one_word(s_pre, h_pre, c_pre):
+            """
+            One step forward in the decoder LSTM. 
+            [Input]: 
+            s_pre: The word vector at previous step (t-1).
+                If it is the image, it is the embedded vector with a shape of (embed_size);
+                if it is a word, it is an integer corresponding to the word token.  
+            [output]:
+            s_t: is the predicted distribution at the current time step (t). 
+            """
+
+            # The \start token??? 
+            start_token, end_token = 0, 1
+
+            if s_pre.numel() == 1:
+                # This is a word from the previous step
+                embed_word = self.embed1(s_pre).view(1, 1, -1)
+                o_t, (h_t, c_t) = self.lstm1(embed_word, (h_pre, c_pre))
+                tag_space = self.hidden2tag(o_t)
+                tag_scores = F.log_softmax(tag_space, dim=-1)
+
+                dist = torch.squeeze(tag_scores)
+                s_t = sample_from_dist(dist)
+            else:
+                # This is the input image:
+                embed_input = s_pre.view(1, 1, -1)
+                _, (h_t, c_t) = self.lstm1(embed_input, (h_pre, c_pre))
+                s_t = start_token  # We only need h_t from the image.
+            return s_t, (h_t, c_t)
+
+        import pdb; pdb.set_trace()
+        # Feed the image vector into the LSTM (initializing the hidden as random)
+        h_pre = torch.randn(1, 1, self.hidden_size)
+        c_pre = torch.randn(1, 1, self.hidden_size)
+        s_t, (h_t, c_t) = forward_one_word(inputs, h_pre, c_pre)
+
+        # Feed each word into the LSTM
+        prd_words = [start_token]
+        while len(prd_words) < (max_len - 1):
+            if s_t == end_token:
+                prd_words.append(s_t)
+            else: 
+                s_t, (h_t, c_t) = forward_one_word(s_t, h_t, c_t)
+                prd_words.append(s_t)
+
+        # End of the prediction: 
+        prd_words.append(end_token)
+
+        return prd_words
