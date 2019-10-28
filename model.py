@@ -114,11 +114,15 @@ class DecoderRNN(nn.Module):
                 s_t = start_token  # We only need h_t from the image.
             return s_t, (h_t, c_t)
 
-        import pdb; pdb.set_trace()
-        # Feed the image vector into the LSTM (initializing the hidden as random)
-        h_pre = torch.randn(1, 1, self.hidden_size)
-        c_pre = torch.randn(1, 1, self.hidden_size)
-        s_t, (h_t, c_t) = forward_one_word(inputs, h_pre, c_pre)
+        import pdb; pdb.set_trace()        
+        if type(state)==tuple:
+            assert len(state)==2, "The state should have both h_(t-1) and c_(t-1)"
+            s_t, (h_t, c_t) = forward_one_word(inputs, state[0], state[1])
+        else:
+            # Feed the image vector into the LSTM (initializing the hidden as random)
+            h_pre = torch.randn(1, 1, self.hidden_size)
+            c_pre = torch.randn(1, 1, self.hidden_size)
+            s_t, (h_t, c_t) = forward_one_word(inputs, h_pre, c_pre)
 
         # Feed each word into the LSTM
         prd_words = [start_token]
