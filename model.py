@@ -74,60 +74,26 @@ class DecoderRNN(nn.Module):
         " accepts pre-processed image tensor (inputs) and returns predicted sentence (list of tensor ids of length max_len) "
         # inputs is an embedd vector. 
 
-        def sample_from_dist(tag_dist):
-            """
-            tag_dist: a 1d tensor of shape (vocab_size).
-                The output from the forward calculation of the decoder. 
-            """
-            prob = torch.distributions.categorical.Categorical(tag_dist)
-            word_token = prob.sample()    
-
-            return word_token
-
-        def forward_one_word(s_pre, h_pre, c_pre):
-            """
-            One step forward in the decoder LSTM. 
-            [Input]: 
-            s_pre: The word vector at previous step (t-1).
-                If it is the image, it is the embedded vector with a shape of (embed_size);
-                if it is a word, it is an integer corresponding to the word token.  
-            [output]:
-            s_t: is the predicted distribution at the current time step (t). 
-            """
-
-            if type(s_pre) is int:
-                # This is a word from the previous step
-                embed_word = self.embed1(torch.cuda.LongTensor(s_pre)).view(1, 1, -1)
-                o_t, (h_t, c_t) = self.lstm1(embed_word, (h_pre, c_pre))
-                tag_space = self.hidden2tag(o_t)
-                tag_scores = F.log_softmax(tag_space, dim=-1)
-
-                dist = torch.squeeze(tag_scores)
-                s_t = sample_from_dist(dist)
-            else:
-                # This is the input image:
-                embed_input = s_pre.view(1, 1, -1)
-                _, (h_t, c_t) = self.lstm1(embed_input, (h_pre, c_pre))
-                s_t = start_token  # We only need h_t from the image.
-            return s_t, (h_t, c_t)
-
-        # The \start token??? 
         start_token, end_token = 0, 1
 
-        import pdb; pdb.set_trace()
-        # Feed the image vector into the LSTM (initializing the hidden as random)
-        h_pre = torch.randn(1, 1, self.hidden_size).cuda()
-        c_pre = torch.randn(1, 1, self.hidden_size).cuda()
-        s_t, (h_t, c_t) = forward_one_word(inputs, h_pre, c_pre)
-
-        # Feed each word into the LSTM
-        prd_words = [start_token]
+        if (type(states) is tuple) and len(states)==2:
+            hidden = states
+        else: 
+            h_pre = torch.randn(1, 1, self.hidden_size).to(inputs.device)
+            c_pre = h_pre
+            hidden = (h_pre, c_pre)
+             
+        prd_words = []
         while len(prd_words) < (max_len - 1):
-            if s_t == end_token:
-                prd_words.append(s_t)
-            else: 
-                s_t, (h_t, c_t) = forward_one_word(s_t, h_t, c_t)
-                prd_words.append(s_t)
+            o_t, hidden = self.lstm1(inputs, hidden)
+            tag_space = self.hidden2tag(o_t)
+            tag_scores = F.log_softmax(tag_space, dim=-1)
+            tag_scores = tag_scores.squeeze(1)
+
+            word_ind = tag_scores.argmax(dim=-1) 
+            prd_words.append(word_ind.item()) 
+
+            inputs = self.embed1(word_ind.unsqueeze(0))
 
         # End of the prediction: 
         prd_words.append(end_token)
