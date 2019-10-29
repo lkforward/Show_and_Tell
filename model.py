@@ -95,12 +95,9 @@ class DecoderRNN(nn.Module):
             s_t: is the predicted distribution at the current time step (t). 
             """
 
-            # The \start token??? 
-            start_token, end_token = 0, 1
-
-            if s_pre.numel() == 1:
+            if type(s_pre) is int:
                 # This is a word from the previous step
-                embed_word = self.embed1(s_pre).view(1, 1, -1)
+                embed_word = self.embed1(torch.cuda.LongTensor(s_pre)).view(1, 1, -1)
                 o_t, (h_t, c_t) = self.lstm1(embed_word, (h_pre, c_pre))
                 tag_space = self.hidden2tag(o_t)
                 tag_scores = F.log_softmax(tag_space, dim=-1)
@@ -114,15 +111,14 @@ class DecoderRNN(nn.Module):
                 s_t = start_token  # We only need h_t from the image.
             return s_t, (h_t, c_t)
 
-        import pdb; pdb.set_trace()        
-        if type(state)==tuple:
-            assert len(state)==2, "The state should have both h_(t-1) and c_(t-1)"
-            s_t, (h_t, c_t) = forward_one_word(inputs, state[0], state[1])
-        else:
-            # Feed the image vector into the LSTM (initializing the hidden as random)
-            h_pre = torch.randn(1, 1, self.hidden_size)
-            c_pre = torch.randn(1, 1, self.hidden_size)
-            s_t, (h_t, c_t) = forward_one_word(inputs, h_pre, c_pre)
+        # The \start token??? 
+        start_token, end_token = 0, 1
+
+        import pdb; pdb.set_trace()
+        # Feed the image vector into the LSTM (initializing the hidden as random)
+        h_pre = torch.randn(1, 1, self.hidden_size).cuda()
+        c_pre = torch.randn(1, 1, self.hidden_size).cuda()
+        s_t, (h_t, c_t) = forward_one_word(inputs, h_pre, c_pre)
 
         # Feed each word into the LSTM
         prd_words = [start_token]
