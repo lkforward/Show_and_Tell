@@ -8,8 +8,8 @@ The notebook, 0_Dataset.ipynb, describes how to uses the COCO API to access the 
 
 ## File Descriptions
 - model.py: Define the CNN encoder class and the LSTM decoder class using pyTorch. 
-- Training.ipynb: Select proper optimizers and train the model.
+- Training.ipynb: train the CNN-LSTM model.
 - Inference.ipynb: Use the trained model to generate caption for images. 
 
 ## References
-This repository originates from Project 2, Image Captioning, in Udacity Computer Vision Nanodegree program. 
+This project is inspired by course project "Image Captioning" in Udacity Computer Vision Nanodegree program. 
